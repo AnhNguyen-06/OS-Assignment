@@ -41,4 +41,44 @@ These outputs are used to verify the correctness of the OS implementation.
 
 ### Other Root Files
 - **`Makefile`**: Contains the build rules to compile the C source files and generate the simulator executable.
-- **`run.sh`**: A shell script used to automate compiling and running the simulator against the various test cases in the `input/` folder. 
+- **`run.sh`**: A shell script used to automate compiling and running the simulator against the various test cases in the `input/` folder.
+
+## Collaboration & Git Workflow
+
+To ensure a smooth collaboration process and avoid merge conflicts, please follow this Git workflow when contributing to the repository:
+
+1. **Keep your local main branch up to date:**
+   Before starting any new work, make sure your local `main` branch is synced with the remote repository.
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+2. **Create a new branch for your feature or fix:**
+   Never commit directly to the `main` branch. Always create a new branch for your specific task.
+   ```bash
+   git checkout -b your-feature-branch-name
+   ```
+
+3. **Make your changes and commit:**
+   Work on your files, stage them, and commit with clear, descriptive messages.
+   ```bash
+   git add .
+   git commit -m "Description of the changes made"
+   ```
+
+4. **Sync with main before pushing:**
+   While you were working, others might have pushed changes to `main`. Pull those changes into your branch to resolve any conflicts locally.
+   ```bash
+   git pull origin main
+   ```
+   *(Resolve any merge conflicts if they occur, then commit the resolved files).*
+
+5. **Push your branch to the remote repository:**
+   Once your branch is up to date and conflicts are resolved, push it to the remote repository.
+   ```bash
+   git push origin your-feature-branch-name
+   ```
+
+6. **Create a Pull Request:**
+   Go to the repository platform and open a Pull Request (PR) from your feature branch to the `main` branch. Wait for your collaborators to review and approve the PR before merging.
