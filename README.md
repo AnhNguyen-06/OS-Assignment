@@ -41,4 +41,4 @@ These outputs are used to verify the correctness of the OS implementation.
 
 ### Other Root Files
 - **`Makefile`**: Contains the build rules to compile the C source files and generate the simulator executable.
-- **`run.sh`**: A shell script used to automate compiling and running the simulator against the various test cases in the `input/` folder.
+- **`run.sh`**: A shell script used to automate compiling and running the simulator against the various test cases in the `input/` folder. 
