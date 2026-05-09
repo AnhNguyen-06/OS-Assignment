@@ -7,75 +7,117 @@ This project is an Operating System simulator developed as an assignment for an 
 - **System Calls**: Emulates the interface between user programs and the OS kernel, allowing simulated processes to request resources or OS-level operations.
 - **Timer & Hardware**: Simulates hardware timer interrupts to enforce time-sharing among processes and basic CPU execution cycles.
 
+---
+
+## How to Build and Run Test Cases
+
+### 1. Build the Simulator
+To compile the C source code, use the provided `Makefile`. Open your WSL/Linux terminal and run:
+```bash
+make clean
+make
+```
+This will compile all `.c` files in `src/` and generate the `os` executable.
+
+### 2. Run a Test Case
+The test configurations are stored in the `input/` folder. To run a test case, pass the filename to the `os` executable.
+**Example (Test Single CPU without Paging config):**
+```bash
+./os os_1_singleCPU_mlq > /tmp/single.txt
+diff /tmp/single.txt output/os_1_singleCPU_mlq.output
+```
+**Example (Test MLQ with Paging):**
+```bash
+./os os_1_mlq_paging > /tmp/mine.txt
+diff /tmp/mine.txt output/os_1_mlq_paging.output
+```
+*(Note: Small differences in `PDG=...` addresses are completely normal due to dynamic `malloc` allocation by the host OS. Minor variations in scheduling print order are also expected due to the non-deterministic nature of Multi-threading).*
+
+---
+
+## Memory Management (MM64) Implementation Details
+
+We have completed the Memory Management module, successfully passing all edge cases and intentional bugs introduced by the assignment specification. Here is a breakdown of the architecture:
+
+### 1. Process Isolation & `krnl` Mapping (`os.c` & `sys_mem.c`)
+- **Bug Fixed:** Originally, the loader assigned the global `&os` struct to every process. This caused a critical issue where all processes overwrote each other's memory management (`mm`) pointer.
+- **Solution:** We dynamically allocate a private `krnl_t` instance for each process upon loading. Global structures like `ready_queue` and physical memory (`mram`, `mswp`) are passed by reference, while `krnl->mm` is kept strictly isolated for each process.
+- **Dynamic PCB Lookup:** When `sys_memmap` is called, it correctly scans the `running_list` queue using the process PID to locate the actual caller PCB instead of using dummy memory.
+
+### 2. Virtual Memory Areas (VMA) (`mm-vm.c` & `libmem.c`)
+- **`__alloc` & `sbrk` Update:** Fixed a bug where memory allocation failed to increment the `sbrk` boundary. Now, when a process requests more memory and the `SYSMEM_INC_OP` system call succeeds, the VMA's `sbrk` limit is correctly increased.
+- **Overlap Validation:** `validate_overlap_vm_area` accurately ensures that dynamically growing VMAs do not overwrite adjacent memory regions. 
+
+### 3. 5-Level Paging Architecture (`mm64.c`)
+- **Hierarchy:** Implemented 64-bit address translation tracking across 5 levels (`PGD -> P4D -> PUD -> PMD -> PT`).
+- **PTE Operations (`pte_set_fpn`, `pte_set_swap`, `pte_get_entry`):** 
+  - **Intentional Bug Fixed:** The initial code allocated a dummy pointer (`malloc(sizeof(addr_t))`) and wrote the Page Table Entry (PTE) there. The data was immediately lost, resulting in all pages being incorrectly marked as "Not Present" (`pte = 0`).
+  - **Solution:** Modified these functions to directly access the physical flat array `caller->krnl->mm->pgd[pgn]`. 
+
+### 4. Page Replacement & FIFO SWAP (`libmem.c`)
+- **Page Fault Handling:** If a required page is not in RAM, `pg_getpage` invokes the page replacement algorithm.
+- **Victim Selection:** `find_victim_page` employs a Strict FIFO queue to evict the oldest page. We also patched a pointer manipulation bug that broke the FIFO queue when it contained only a single node.
+- **PTE Flagging:** When a page is evicted to SWAP, its `PRESENT` bit is explicitly cleared (0) and the `SWAPPED` bit is enabled (1). When brought back to RAM, the flags are properly toggled.
+
+### 5. Smart Configuration Loader (`os.c`)
+- **Legacy Compatibility:** Test files like `os_1_singleCPU_mlq` do not provide a memory configuration line (RAM/SWAP sizes), which previously crashed `fscanf`. 
+- **Solution:** Implemented a heuristic peek detection. If the file contains a massive number (`> 65536`), the loader interprets it as a memory config line. Otherwise, it safely rewinds and assigns hardcoded legacy memory capacities.
+
+---
+
 ## Folder Structure and Descriptions
 
-The repository is organized into the following main directories and files:
-
 ### `include/`
-This folder contains all the C header (`.h`) files that define the data structures, macros, and function prototypes used across the simulator. These act as the interfaces for the different OS modules:
-- **Hardware & Core**: `cpu.h`, `timer.h`, `mem.h` (Interfaces for CPU execution, hardware timer, memory layout).
-- **Memory Management**: `mm.h`, `mm64.h`, `os-mm.h`, `libmem.h` (Definitions related to memory management, paging, memory mapping, and physical/virtual memory).
-- **Scheduling**: `sched.h`, `queue.h` (Data structures and functions for process scheduling, PCB states, and ready queues).
-- **System Calls**: `syscall.h` (Definitions for simulated system calls).
-- **Utilities**: `common.h`, `os-cfg.h`, `loader.h`, `bitops.h` (Common utilities, bitwise operations, loader interfaces, and global configurations).
+This folder contains all the C header (`.h`) files that define the data structures, macros, and function prototypes.
+- **Hardware & Core**: `cpu.h`, `timer.h`, `mem.h`.
+- **Memory Management**: `mm.h`, `mm64.h`, `os-mm.h`, `libmem.h`.
+- **Scheduling**: `sched.h`, `queue.h`.
+- **System Calls**: `syscall.h`.
+- **Utilities**: `common.h`, `os-cfg.h`, `loader.h`, `bitops.h`.
 
 ### `src/`
-This folder holds the C source (`.c`) files containing the actual implementation logic for the simulator's components.
-- **Core OS & CPU**: `os.c`, `cpu.c`, `timer.c` implement the main simulation loop, pseudo-instruction execution, and timer ticks.
-- **Memory Management**: `mm.c`, `mm64.c`, `mm-vm.c`, `mm-memphy.c`, `paging.c`, `libmem.c` handle memory allocation, page table traversals (for 32-bit and 64-bit), page faults, frame allocation, and swapping memory.
-- **Scheduling**: `sched.c`, `queue.c` implement the MLQ scheduling logic, context switching, and process queue management.
-- **System Calls**: `syscall.c`, `sys_mem.c`, `sys_listsyscall.c` execute the system call handlers.
-- **Utilities**: `loader.c` for loading processes into memory and `libstd.c` for standard library equivalents.
+Holds the C source (`.c`) files containing the actual implementation logic.
+- **Core OS & CPU**: `os.c`, `cpu.c`, `timer.c`.
+- **Memory Management**: `mm.c`, `mm64.c`, `mm-vm.c`, `mm-memphy.c`, `paging.c`, `libmem.c`.
+- **Scheduling**: `sched.c`, `queue.c`.
+- **System Calls**: `syscall.c`, `sys_mem.c`, `sys_listsyscall.c`.
+- **Utilities**: `loader.c`, `libstd.c`.
 
 ### `input/`
-This folder contains the configuration files and simulated process programs used as inputs to drive the simulator:
-- **Configuration Files**: Files like `os_0_mlq_paging`, `os_1_singleCPU_mlq` specify the simulation parameters, such as the scheduling algorithm, memory size, time quantum, and the list of processes to execute.
-- **`proc/` Subdirectory**: Contains simulated user programs written in a custom pseudo-instruction format. These files define the sequence of instructions (e.g., arithmetic operations, memory read/writes, system calls) that the simulated CPU will execute.
+Contains the configuration files (`os_0_mlq_paging`, etc.) and simulated process programs (inside the `proc/` subdirectory) written in a custom pseudo-instruction format.
 
 ### `output/`
-This folder stores the execution logs generated by running the simulator against the configuration files in the `input/` directory. Each `.output` file (e.g., `os_0_mlq_paging.output`) provides a detailed trace of the OS execution, including:
-- CPU instruction execution steps.
-- Memory states, page allocations, and page faults.
-- Scheduling decisions and process context switches.
-These outputs are used to verify the correctness of the OS implementation.
+Stores the reference execution logs (`.output`) used to verify the correctness of the OS implementation.
 
-### Other Root Files
-- **`Makefile`**: Contains the build rules to compile the C source files and generate the simulator executable.
-- **`run.sh`**: A shell script used to automate compiling and running the simulator against the various test cases in the `input/` folder.
+---
 
 ## Collaboration & Git Workflow
 
 To ensure a smooth collaboration process and avoid merge conflicts, please follow this Git workflow when contributing to the repository:
 
 1. **Keep your local main branch up to date:**
-   Before starting any new work, make sure your local `main` branch is synced with the remote repository.
    ```bash
    git checkout main
    git pull origin main
    ```
 
 2. **Create a new branch for your feature or fix:**
-   Never commit directly to the `main` branch. Always create a new branch for your specific task.
    ```bash
    git checkout -b your-feature-branch-name
    ```
 
 3. **Make your changes and commit:**
-   Work on your files, stage them, and commit with clear, descriptive messages.
    ```bash
    git add .
    git commit -m "Description of the changes made"
    ```
 
 4. **Sync with main before pushing:**
-   While you were working, others might have pushed changes to `main`. Pull those changes into your branch to resolve any conflicts locally.
    ```bash
    git pull origin main
    ```
-   *(Resolve any merge conflicts if they occur, then commit the resolved files).*
 
 5. **Push your branch to the remote repository:**
-   Once your branch is up to date and conflicts are resolved, push it to the remote repository.
    ```bash
    git push origin your-feature-branch-name
    ```
