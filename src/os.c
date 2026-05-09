@@ -137,7 +137,18 @@ static void * ld_routine(void * args) {
 	printf("ld_routine\n");
 	while (i < num_processes) {
 		struct pcb_t * proc = load(ld_processes.path[i]);
-		struct krnl_t * krnl = proc->krnl = &os;	
+
+		/* Each process gets its OWN krnl so that krnl->mm is per-process.
+		 * Physical memory (mram/mswp) and scheduler queues are shared via os. */
+		struct krnl_t *krnl = (struct krnl_t*)malloc(sizeof(struct krnl_t));
+		proc->krnl = krnl;
+
+		/* Share scheduler queues from global os */
+		krnl->ready_queue    = os.ready_queue;
+		krnl->running_list   = os.running_list;
+#ifdef MLQ_SCHED
+		krnl->mlq_ready_queue = os.mlq_ready_queue;
+#endif
 
 #ifdef MLQ_SCHED
 		proc->prio = ld_processes.prio[i];
@@ -146,11 +157,24 @@ static void * ld_routine(void * args) {
 			next_slot(timer_id);
 		}
 #ifdef MM_PAGING
+		/* Per-process memory management struct */
 		krnl->mm = malloc(sizeof(struct mm_struct));
 		init_mm(krnl->mm, proc);
-		krnl->mram = mram;
-		krnl->mswp = mswp;
+
+		/* Shared physical memory */
+		krnl->mram        = mram;
+		krnl->mswp        = mswp;
 		krnl->active_mswp = active_mswp;
+		krnl->active_mswp_id = 0;
+
+		/* Share kernel-level page tables */
+		krnl->krnl_pgd = os.krnl_pgd;
+#ifdef MM64
+		krnl->krnl_p4d = os.krnl_p4d;
+		krnl->krnl_pud = os.krnl_pud;
+		krnl->krnl_pmd = os.krnl_pmd;
+		krnl->krnl_pt  = os.krnl_pt;
+#endif
 #endif
 		printf("\tLoaded a process at %s, PID: %d PRIO: %ld\n",
 			ld_processes.path[i], proc->pid, ld_processes.prio[i]);
@@ -159,6 +183,7 @@ static void * ld_routine(void * args) {
 		i++;
 		next_slot(timer_id);
 	}
+
 	free(ld_processes.path);
 	free(ld_processes.start_time);
 	done = 1;
@@ -179,27 +204,39 @@ static void read_config(const char * path) {
 #ifdef MM_PAGING
 	int sit;
 #ifdef MM_FIXED_MEMSZ
-	/* We provide here a back compatible with legacy OS simulatiom config file
-         * In which, it have no addition config line for Mema, keep only one line
-	 * for legacy info 
-         *  [time slice] [N = Number of CPU] [M = Number of Processes to be run]
-         */
+	/* Legacy back-compatible mode: hardcoded memory sizes, no config line */
         memramsz  =  0x100000000;
         memswpsz[0] = 0x1000000;
 	for(sit = 1; sit < PAGING_MAX_MMSWP; sit++)
 		memswpsz[sit] = 0;
 #else
-	/* Read input config of memory size: MEMRAM and upto 4 MEMSWP (mem swap)
-	 * Format: (size=0 result non-used memswap, must have RAM and at least 1 SWAP)
-	 *        MEM_RAM_SZ MEM_SWP0_SZ MEM_SWP1_SZ MEM_SWP2_SZ MEM_SWP3_SZ
-	*/
-	fscanf(file, FORMAT_ARG "\n", &memramsz);
-	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
-		fscanf(file, FORMAT_ARG, &(memswpsz[sit])); 
+	/* Auto-detect: peek at next line to decide if it is a memory config line
+	 * or the first process entry line.
+	 * Heuristic: a memory size (RAM) is always >> any realistic process
+	 * start time (which is < a few hundred). We use 65536 as threshold.
+	 */
+	{
+		long peek_pos = ftell(file);
+		unsigned long peek_val = 0;
+		int n = fscanf(file, "%lu", &peek_val);
+		if (n == 1 && peek_val > 65536) {
+			/* Memory config line is present — continue reading it */
+			memramsz = peek_val;
+			for (sit = 0; sit < PAGING_MAX_MMSWP; sit++)
+				fscanf(file, FORMAT_ARG, &(memswpsz[sit]));
+			fscanf(file, "\n"); /* consume trailing newline */
+		} else {
+			/* No memory config line — rewind and use safe defaults */
+			fseek(file, peek_pos, SEEK_SET);
+			memramsz   = 0x100000000;
+			memswpsz[0] = 0x1000000;
+			for (sit = 1; sit < PAGING_MAX_MMSWP; sit++)
+				memswpsz[sit] = 0;
+		}
+	}
+#endif
+#endif
 
-       fscanf(file, "\n"); /* Final character */
-#endif
-#endif
 
 #ifdef MLQ_SCHED
 	ld_processes.prio = (unsigned long*)

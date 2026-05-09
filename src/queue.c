@@ -26,7 +26,7 @@ struct pcb_t *dequeue(struct queue_t *q)
         if (empty(q)) return NULL;
         //tìm tiến trình có priority nhỏ nhất
         int target_idx = 0;
-        for (int i=0; i < q->size; i++) {
+        for (int i=1; i < q->size; i++) {
                 if (q->proc[i]->priority < q->proc[target_idx]->priority) {
                         target_idx = i;
                 }
