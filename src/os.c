@@ -212,17 +212,20 @@ static void read_config(const char * path) {
 #else
 	/* Auto-detect: peek at next line to decide if it is a memory config line
 	 * or the first process entry line.
-	 * Heuristic: a memory size (RAM) is always >> any realistic process
-	 * start time (which is < a few hundred). We use 65536 as threshold.
+	 * Heuristic: The memory config line contains 5 integers (e.g. 2048 16777216 0 0 0).
+	 * The process line contains: [integer] [string] [integer] (e.g. 1 p0s 130).
+	 * We try to read two integers. If it succeeds, it's the memory config line.
 	 */
 	{
 		long peek_pos = ftell(file);
-		unsigned long peek_val = 0;
-		int n = fscanf(file, "%lu", &peek_val);
-		if (n == 1 && peek_val > 65536) {
+		unsigned long peek_val1 = 0;
+		unsigned long peek_val2 = 0;
+		int n = fscanf(file, "%lu %lu", &peek_val1, &peek_val2);
+		if (n == 2) {
 			/* Memory config line is present — continue reading it */
-			memramsz = peek_val;
-			for (sit = 0; sit < PAGING_MAX_MMSWP; sit++)
+			memramsz = peek_val1;
+			memswpsz[0] = peek_val2;
+			for (sit = 1; sit < PAGING_MAX_MMSWP; sit++)
 				fscanf(file, FORMAT_ARG, &(memswpsz[sit]));
 			fscanf(file, "\n"); /* consume trailing newline */
 		} else {

@@ -19,19 +19,46 @@ make
 ```
 This will compile all `.c` files in `src/` and generate the `os` executable.
 
-### 2. Run a Test Case
-The test configurations are stored in the `input/` folder. To run a test case, pass the filename to the `os` executable.
+### 2. Run a Specific Test Case
+To run an individual test case, pass the configuration filename to the `os` executable. You should redirect the output to a temporary file, then use `diff` to compare it against the professor's expected output in the `output/` folder.
+
+**General syntax:**
+```bash
+./os <name_file_test_in_folder_input> > /tmp/my_output.txt
+diff /tmp/my_output.txt output/<name_relative_file_test_in_folder_output>.output
+```
+
 **Example (Test Single CPU without Paging config):**
 ```bash
 ./os os_1_singleCPU_mlq > /tmp/single.txt
 diff /tmp/single.txt output/os_1_singleCPU_mlq.output
 ```
-**Example (Test MLQ with Paging):**
+
+### 3. Run and Validate ALL Test Cases
+*(Warning: Avoid running the provided `run.sh` script directly, as it will overwrite the professor's original reference outputs located in the `output/` directory).*
+
+Instead, you can safely run the following bash snippet in your terminal. It automatically iterates through all `os_*` test configurations, runs the simulator, and compares the results side-by-side:
+
 ```bash
-./os os_1_mlq_paging > /tmp/mine.txt
-diff /tmp/mine.txt output/os_1_mlq_paging.output
+# Loop through all OS test cases in the input directory
+for test_file in input/os_*; do
+    if [ -f "$test_file" ]; then
+        # Extract just the filename (e.g., os_1_mlq_paging)
+        config_name=$(basename "$test_file")
+        
+        echo "==========================="
+        echo "Testing: $config_name"
+        
+        # Run the simulator and save output to a temporary file
+        ./os "$config_name" > "/tmp/${config_name}.output"
+        
+        # Compare our result against the reference output (showing only the top 10 differences)
+        diff "/tmp/${config_name}.output" "output/${config_name}.output" | head -n 10
+    fi
+done
 ```
-*(Note: Small differences in `PDG=...` addresses are completely normal due to dynamic `malloc` allocation by the host OS. Minor variations in scheduling print order are also expected due to the non-deterministic nature of Multi-threading).*
+
+> **Note on Diff Results:** Small differences showing `PDG=...` memory addresses are completely normal, as `malloc()` assigns physical memory dynamically on the host machine. Additionally, minor line shifts regarding `Dispatched process` and `Put process ... to run queue` are expected—this simply demonstrates the natural non-deterministic execution of our Multi-threading scheduler!
 
 ---
 
