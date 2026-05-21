@@ -20,28 +20,38 @@ make
 This will compile all `.c` files in `src/` and generate the `os` executable.
 
 ### 2. Run a Specific Test Case
-To run an individual test case, pass the configuration filename to the `os` executable. You should redirect the output to a temporary file, then use `diff` to compare it against the professor's expected output in the `output/` folder.
+To run an individual test case, pass the configuration filename to the `os` executable. 
 
 **General syntax:**
 ```bash
-./os <name_file_test_in_folder_input> > /tmp/my_output.txt
-diff /tmp/my_output.txt output/<name_relative_file_test_in_folder_output>.output
+./os <name_file_test_in_folder_input>
 ```
 
-**Example (Test Single CPU without Paging config):**
+**Run individual test cases (copy & paste):**
 ```bash
-./os os_1_singleCPU_mlq > /tmp/single.txt
-diff /tmp/single.txt output/os_1_singleCPU_mlq.output
+./os os_0_mlq_paging
+./os os_1_mlq_paging
+./os os_1_mlq_paging_small_1K
+./os os_1_mlq_paging_small_4K
+./os os_1_singleCPU_mlq
+./os os_1_singleCPU_mlq_paging
+./os os_2_mlq_paging
+./os os_2_singleCPU_mlq_paging
+./os os_sc
+./os os_syscall
+./os os_syscall_list
+./os sched
+./os sched_0
+./os sched_1
 ```
 
-### 3. Run and Validate ALL Test Cases
-*(Warning: Avoid running the provided `run.sh` script directly, as it will overwrite the professor's original reference outputs located in the `output/` directory).*
+### 3. Run ALL Test Cases
 
-Instead, you can safely run the following bash snippet in your terminal. It automatically iterates through all `os_*` test configurations, runs the simulator, and compares the results side-by-side:
+You can run the following bash snippet in your terminal. It automatically iterates through all test configurations in the `input` directory and runs the simulator for each:
 
 ```bash
-# Loop through all OS test cases in the input directory
-for test_file in input/os_*; do
+# Loop through all test cases in the input directory
+for test_file in input/*; do
     if [ -f "$test_file" ]; then
         # Extract just the filename (e.g., os_1_mlq_paging)
         config_name=$(basename "$test_file")
@@ -49,16 +59,11 @@ for test_file in input/os_*; do
         echo "==========================="
         echo "Testing: $config_name"
         
-        # Run the simulator and save output to a temporary file
-        ./os "$config_name" > "/tmp/${config_name}.output"
-        
-        # Compare our result against the reference output (showing only the top 10 differences)
-        diff "/tmp/${config_name}.output" "output/${config_name}.output" | head -n 10
+        # Run the simulator
+        ./os "$config_name"
     fi
 done
 ```
-
-> **Note on Diff Results:** Small differences showing `PDG=...` memory addresses are completely normal, as `malloc()` assigns physical memory dynamically on the host machine. Additionally, minor line shifts regarding `Dispatched process` and `Put process ... to run queue` are expected—this simply demonstrates the natural non-deterministic execution of our Multi-threading scheduler!
 
 ---
 
