@@ -64,21 +64,11 @@ int __mm_swap_page(struct pcb_t *caller, addr_t vicfpn , addr_t swpfpn)
 struct vm_rg_struct *get_vm_area_node_at_brk(struct pcb_t *caller, int vmaid, addr_t size, addr_t alignedsz)
 {
   struct vm_rg_struct * newrg;
-  /* TODO retrive current vma to obtain newrg, current comment out due to compiler redundant warning*/
-  //struct vm_area_struct *cur_vma = get_vma_by_num(caller->kernl->mm, vmaid);
-
-  //newrg = malloc(sizeof(struct vm_rg_struct));
-
-  /* TODO: update the newrg boundary
-  // newrg->rg_start = ...
-  // newrg->rg_end = ...
-  */
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->krnl->mm, vmaid);
 
   newrg = malloc(sizeof(struct vm_rg_struct));
   newrg->rg_start = cur_vma->sbrk;
   newrg->rg_end = newrg->rg_start + size;
-  /* END TODO */
   cur_vma->sbrk = newrg->rg_end;
   return newrg;
 }
@@ -104,11 +94,8 @@ int validate_overlap_vm_area(struct pcb_t *caller, int vmaid, addr_t vmastart, a
 
   while (vma != NULL)
   {
-    /* Kiểm tra vùng nhớ (vmastart, vmaend) có bị trùng với vma nào khác không. 
-     * OVERLAP macro mặc định là 0 trong mm.h nên ta dùng biểu thức so sánh trực tiếp:
-     * Hai đoạn [A_start, A_end] và [B_start, B_end] giao nhau khi (A_start < B_end) && (B_start < A_end)
-     */
-    if (vma != cur_area && (vmastart < vma->vm_end) && (vma->vm_start < vmaend))
+    /* Sử dụng OVERLAP macro để kiểm tra sự chồng chéo giữa 2 vùng nhớ */
+    if (vma != cur_area && OVERLAP(vma->vm_start, vma->vm_end, vmastart, vmaend))
     {
       return -1;
     }
@@ -137,13 +124,11 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, addr_t inc_sz)
   addr_t old_end = cur_vma->vm_end;
   addr_t new_end = old_end + inc_amt;
 
-  /* TODO Validate overlap of obtained region */
   if (validate_overlap_vm_area(caller, vmaid, cur_vma->vm_start, new_end) < 0) {
     free(newrg);
     return -1; /*Overlap and failed allocation */
   }
 
-  /* TODO: Obtain the new vm area based on vmaid */
   cur_vma->vm_end = new_end;
 
   /* The obtained vm area (only)
