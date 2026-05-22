@@ -86,6 +86,7 @@ struct vm_area_struct {
  * Kernel cache pool struct
  */
 struct kcache_pool_struct {
+   int cache_pool_id;
    int size;
    int align;
 
@@ -94,6 +95,8 @@ struct kcache_pool_struct {
 #else
    uint32_t storage;
 #endif
+
+   struct kcache_pool_struct *next;
 };
 
 
