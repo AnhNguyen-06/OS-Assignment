@@ -78,7 +78,7 @@ int get_pd_from_address(addr_t addr, addr_t* pgd, addr_t* p4d, addr_t* pud, addr
 	*pmd = (addr&PAGING64_ADDR_PMD_MASK)>>PAGING64_ADDR_PMD_LOBIT;
 	*pt = (addr&PAGING64_ADDR_PT_MASK)>>PAGING64_ADDR_PT_LOBIT;
 
-	/* Page directories mapping is simplified to a flat 1D array in this simulation */
+	/* TODO: implement the page direactories mapping */
 
 	return 0;
 }
@@ -195,13 +195,11 @@ int vmap_pgd_memset(struct pcb_t *caller,           // process call
                     addr_t addr,                       // start address which is aligned to pagesz
                     int pgnum)                      // num of mapping page
 {
-  int pgit = 0;
-  uint32_t pattern = 0xdeadbeef;
+  //int pgit = 0;
+  //uint64_t pattern = 0xdeadbeef;
 
-  for (pgit = 0; pgit < pgnum; pgit++) {
-      addr_t pgn = PAGING_PGN(addr + (addr_t)pgit * PAGING64_PAGESZ);
-      pte_set_entry(caller, pgn, pattern);
-  }
+  /* TODO memset the page table with given pattern
+   */
 
   return 0;
 }
@@ -370,7 +368,7 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
 
   /* By default the owner comes with at least one vma (vmaid=0) */
   vma0->vm_id    = 0;
-  vma0->vm_start = 0;
+  vma0->vm_start = 0x0000000010000000UL;
   vma0->vm_end   = vma0->vm_start;
   vma0->sbrk     = vma0->vm_start;
   vma0->vm_next  = NULL;
